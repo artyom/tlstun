@@ -87,14 +87,18 @@ func runServer(addr, certFile, keyFile string, l logger.Interface) error {
 			return err
 		}
 		go func(conn net.Conn) error {
+			start := time.Now()
 			defer conn.Close()
-			conn.SetDeadline(time.Now().Add(10 * time.Second))
+			conn.SetDeadline(start.Add(10 * time.Second))
 			if err := conn.(*tls.Conn).Handshake(); err != nil {
 				return err
 			}
 			conn.SetDeadline(time.Time{})
 			l.Println("connection from", conn.RemoteAddr(), "established")
-			defer l.Println("connection from", conn.RemoteAddr(), "closed")
+			defer func() {
+				l.Println("connection from", conn.RemoteAddr(), "closed after",
+					time.Since(start).Round(time.Second))
+			}()
 			sess, err := smux.Server(conn, nil)
 			if err != nil {
 				return err
