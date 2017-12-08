@@ -1,0 +1,11 @@
+Command tlstun provides client and server providing basic VPN over TLS.
+
+Client part is expected to be run locally and used by local services as a
+socks5 proxy. Client establishes TLS session to the server part running on
+some remote host that performs outgoing requests on behalf of requests made
+over connections to the client part. Communication between client and server
+is multiplexed over a single TLS session, this reduces TLS handshake
+overhead.
+
+Client and server authenticate each other with certificates, they can be
+created with openssl or https://github.com/artyom/gencert
