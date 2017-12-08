@@ -129,7 +129,12 @@ func runClient(addr, remote, certFile, keyFile string, log logger.Interface) err
 		}
 		return conn, err
 	}
-	pool := &connPool{dialFunc: dialFunc}
+	pool := &connPool{dialFunc: dialFunc, smuxCfg: &smux.Config{
+		KeepAliveInterval: 45 * time.Second,
+		KeepAliveTimeout:  90 * time.Second,
+		MaxFrameSize:      4096,
+		MaxReceiveBuffer:  4194304,
+	}}
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
@@ -156,6 +161,7 @@ func runClient(addr, remote, certFile, keyFile string, log logger.Interface) err
 
 type connPool struct {
 	dialFunc func() (net.Conn, error)
+	smuxCfg  *smux.Config
 
 	mu   sync.Mutex
 	conn net.Conn
@@ -175,7 +181,7 @@ tryAgain:
 		p.conn = conn
 	}
 	if p.sess == nil {
-		sess, err := smux.Client(p.conn, nil)
+		sess, err := smux.Client(p.conn, p.smuxCfg)
 		if err != nil {
 			return nil, err
 		}
