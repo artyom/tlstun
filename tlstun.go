@@ -81,6 +81,12 @@ func runServer(addr, certFile, keyFile string, l logger.Interface) error {
 	}
 	defer ln.Close()
 	tln := tls.NewListener(tcpKeepAliveListener{ln.(*net.TCPListener)}, cfg)
+	smuxCfg := &smux.Config{
+		KeepAliveInterval: 45 * time.Second,
+		KeepAliveTimeout:  90 * time.Second,
+		MaxFrameSize:      4096,
+		MaxReceiveBuffer:  4194304,
+	}
 	for {
 		conn, err := tln.Accept()
 		if err != nil {
@@ -99,7 +105,7 @@ func runServer(addr, certFile, keyFile string, l logger.Interface) error {
 				l.Println("connection from", conn.RemoteAddr(), "closed after",
 					time.Since(start).Round(time.Second))
 			}()
-			sess, err := smux.Server(conn, nil)
+			sess, err := smux.Server(conn, smuxCfg)
 			if err != nil {
 				return err
 			}
