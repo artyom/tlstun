@@ -169,14 +169,10 @@ func runClient(addr, certFile, keyFile string, remotes []string, log logger.Inte
 		return err
 	}
 	dialFunc := func(remote string) (net.Conn, error) {
-		conn, err := tls.DialWithDialer(&net.Dialer{
+		return tls.DialWithDialer(&net.Dialer{
 			Timeout:   5 * time.Second,
 			KeepAlive: 3 * time.Minute,
 		}, "tcp", remote, cfg)
-		if err == nil {
-			log.Println("established new connection to", conn.RemoteAddr())
-		}
-		return conn, err
 	}
 	pool := &connPool{dialFunc: dialFunc, addrs: remotes, smuxCfg: &smux.Config{
 		KeepAliveInterval: 45 * time.Second,
