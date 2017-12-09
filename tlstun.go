@@ -174,7 +174,6 @@ type connPool struct {
 	smuxCfg  *smux.Config
 
 	mu   sync.Mutex
-	conn net.Conn
 	sess *smux.Session
 }
 
@@ -183,24 +182,21 @@ func (p *connPool) dial() (net.Conn, error) {
 	defer p.mu.Unlock()
 	var retry bool
 tryAgain:
-	if p.conn == nil {
+	if p.sess == nil {
 		conn, err := p.dialFunc()
 		if err != nil {
 			return nil, err
 		}
-		p.conn = conn
-	}
-	if p.sess == nil {
-		sess, err := smux.Client(p.conn, p.smuxCfg)
+		sess, err := smux.Client(conn, p.smuxCfg)
 		if err != nil {
+			conn.Close()
 			return nil, err
 		}
 		p.sess = sess
 	}
 	if p.sess.IsClosed() {
 		p.sess.Close()
-		p.conn.Close()
-		p.conn, p.sess = nil, nil
+		p.sess = nil
 		if !retry {
 			retry = true
 			goto tryAgain
