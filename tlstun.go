@@ -1,14 +1,42 @@
-// Command tlstun provides client and server providing basic VPN over TLS.
+// Command tlstun implements basic VPN over TLS (both client and server).
 //
 // Client part is expected to be run locally and used by local services as
-// a socks5 proxy. Client establishes TLS session to the server part running on
-// some remote host that performs outgoing requests on behalf of requests made
-// over connections to the client part. Communication between client and server
-// is multiplexed over a single TLS session, this reduces TLS handshake
-// overhead.
+// a socks5 proxy. Client establishes TLS session to the server running on some
+// remote host that performs outgoing requests on behalf of requests made to the
+// client. Communication between client and server is multiplexed over a single
+// TLS session thus reducing TLS handshake overhead.
 //
-// Client and server authenticate each other with certificates, they can be
+// Client and server authenticate each other with certificates which can be
 // created with openssl or https://github.com/artyom/gencert
+//
+// Usage example
+//
+// Generate server and client side certificates, they should be signed by the
+// same CA and saved using PEM encoding into a single file with certificate
+// followed by CA. Certificate keys should also be saved as a separate
+// PEM-encoded files. With gencert tool from https://github.com/artyom/gencert
+// this can be done as:
+//
+// 	gencert -hosts my.domain.tld
+//
+// This produces four files in the current directory: client certificate + key
+// pair and another pair for the server. Note that my.domain.tld should point to
+// the host you plan running server part of tlstun.
+//
+// Now configure tlstun to run on the server that could be reached at
+// my.domain.tld like this:
+//
+// 	tlstun -addr=:9000 -cert=server-cert.pem -key=server-key.pem
+//
+// The client part is expected to be running locally (on a laptop/workstation,
+// etc.):
+//
+//	tlstun -addr=127.0.0.1:1080 -remote=my.domain.tld:9000 \
+//		-cert=client-cert.pem -key=client-key.pem
+//
+// The presence of -remote flag configures tlstun to run in client mode. It is
+// now listening on localhost port 1080 and local software can be configured to
+// use this endpoint as a socks5 proxy.
 package main
 
 import (
