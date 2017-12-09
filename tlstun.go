@@ -37,6 +37,9 @@
 // The presence of -remote flag configures tlstun to run in client mode. It is
 // now listening on localhost port 1080 and local software can be configured to
 // use this endpoint as a socks5 proxy.
+//
+// Note that -remote flag can be optionally set multiple times, then client
+// probes all servers and picks the one that replied first.
 package main
 
 import (
@@ -60,27 +63,29 @@ import (
 
 func main() {
 	args := struct {
-		Addr   string `flag:"addr,host:port to listen"`
-		Cert   string `flag:"cert,PEM-encoded certificate + CA"`
-		Key    string `flag:"key,PEM-encoded certificate key"`
-		Remote string `flag:"remote,remote server to connect (setting this enables client mode)"`
+		Addr    string      `flag:"addr,host:port to listen"`
+		Cert    string      `flag:"cert,PEM-encoded certificate + CA"`
+		Key     string      `flag:"key,PEM-encoded certificate key"`
+		Remotes stringSlice `flag:"remote,remote server(s) to connect (setting this enables client mode)"`
 	}{}
 	autoflags.Parse(&args)
 	if args.Cert == "" || args.Key == "" || args.Addr == "" {
 		flag.Usage()
 		os.Exit(1)
 	}
-	if args.Addr == args.Remote {
-		fmt.Fprintln(os.Stderr, "-addr and -remote cannot be the same")
-		os.Exit(1)
+	for _, remote := range args.Remotes {
+		if args.Addr == remote {
+			fmt.Fprintln(os.Stderr, "-addr and -remote cannot be the same")
+			os.Exit(1)
+		}
 	}
 	log := log.New(os.Stderr, "", 0)
 	var err error
-	switch args.Remote {
-	case "":
+	switch len(args.Remotes) {
+	case 0:
 		err = runServer(args.Addr, args.Cert, args.Key, log)
 	default:
-		err = runClient(args.Addr, args.Remote, args.Cert, args.Key, log)
+		err = runClient(args.Addr, args.Cert, args.Key, args.Remotes, log)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -149,15 +154,21 @@ func runServer(addr, certFile, keyFile string, l logger.Interface) error {
 	}
 }
 
-func runClient(addr, remote, certFile, keyFile string, log logger.Interface) error {
-	if _, _, err := net.SplitHostPort(remote); err != nil {
-		return err
+func runClient(addr, certFile, keyFile string, remotes []string, log logger.Interface) error {
+	for _, remote := range remotes {
+		host, port, err := net.SplitHostPort(remote)
+		if err != nil {
+			return err
+		}
+		if host == "" || port == "" {
+			return fmt.Errorf("-remote=%q is not valid", remote)
+		}
 	}
 	cfg, err := tlsConfig(certFile, keyFile)
 	if err != nil {
 		return err
 	}
-	dialFunc := func() (net.Conn, error) {
+	dialFunc := func(remote string) (net.Conn, error) {
 		conn, err := tls.DialWithDialer(&net.Dialer{
 			Timeout:   5 * time.Second,
 			KeepAlive: 3 * time.Minute,
@@ -167,7 +178,7 @@ func runClient(addr, remote, certFile, keyFile string, log logger.Interface) err
 		}
 		return conn, err
 	}
-	pool := &connPool{dialFunc: dialFunc, smuxCfg: &smux.Config{
+	pool := &connPool{dialFunc: dialFunc, addrs: remotes, smuxCfg: &smux.Config{
 		KeepAliveInterval: 45 * time.Second,
 		KeepAliveTimeout:  90 * time.Second,
 		MaxFrameSize:      4096,
@@ -198,11 +209,12 @@ func runClient(addr, remote, certFile, keyFile string, log logger.Interface) err
 }
 
 type connPool struct {
-	dialFunc func() (net.Conn, error)
+	dialFunc func(addr string) (net.Conn, error)
 	smuxCfg  *smux.Config
 
-	mu   sync.Mutex
-	sess *smux.Session
+	mu    sync.Mutex
+	sess  *smux.Session
+	addrs []string // has at least 1 element
 }
 
 func (p *connPool) dial() (net.Conn, error) {
@@ -211,13 +223,8 @@ func (p *connPool) dial() (net.Conn, error) {
 	var retry bool
 tryAgain:
 	if p.sess == nil {
-		conn, err := p.dialFunc()
+		sess, err := newSession(p.dialFunc, p.smuxCfg, p.addrs)
 		if err != nil {
-			return nil, err
-		}
-		sess, err := smux.Client(conn, p.smuxCfg)
-		if err != nil {
-			conn.Close()
 			return nil, err
 		}
 		p.sess = sess
@@ -232,6 +239,52 @@ tryAgain:
 		return nil, fmt.Errorf("session is closed")
 	}
 	return p.sess.OpenStream()
+}
+
+// newSession dials multiple addresses in parallel and tries to establish a new
+// smux.Session on each, returning the first that succeeds right away. Other
+// successfully established sessions are closed as unused. If no session was
+// established, the last error is returned.
+func newSession(dialFunc func(string) (net.Conn, error), cfg *smux.Config, addrs []string) (*smux.Session, error) {
+	if len(addrs) == 0 {
+		return nil, fmt.Errorf("no destinations to dial")
+	}
+	sessCh := make(chan *smux.Session)
+	errCh := make(chan error)
+	for _, addr := range addrs {
+		go func(addr string) {
+			sess, err := func() (*smux.Session, error) {
+				conn, err := dialFunc(addr)
+				if err != nil {
+					return nil, err
+				}
+				sess, err := smux.Client(conn, cfg)
+				if err != nil {
+					conn.Close()
+					return nil, err
+				}
+				return sess, nil
+			}()
+			if err != nil {
+				errCh <- err
+				return
+			}
+			select {
+			case sessCh <- sess:
+			default:
+				sess.Close() // don't leak unused connection
+			}
+		}(addr)
+	}
+	var err error
+	for i := 0; i < len(addrs); i++ {
+		select {
+		case sess := <-sessCh:
+			return sess, nil
+		case err = <-errCh:
+		}
+	}
+	return nil, err
 }
 
 func tlsConfig(certFile, keyFile string) (*tls.Config, error) {
@@ -276,4 +329,13 @@ func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 	tc.SetKeepAlive(true)
 	tc.SetKeepAlivePeriod(3 * time.Minute)
 	return tc, nil
+}
+
+// implements flag.Value interface
+type stringSlice []string
+
+func (c *stringSlice) String() string { return fmt.Sprint(*c) }
+func (c *stringSlice) Set(value string) error {
+	*c = append(*c, value)
+	return nil
 }

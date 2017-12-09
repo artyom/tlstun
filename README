@@ -38,3 +38,6 @@ etc.):
 The presence of -remote flag configures tlstun to run in client mode. It is
 now listening on localhost port 1080 and local software can be configured to
 use this endpoint as a socks5 proxy.
+
+Note that -remote flag can be optionally set multiple times, then client
+probes all servers and picks the one that replied first.
