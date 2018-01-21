@@ -43,6 +43,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
@@ -52,13 +53,16 @@ import (
 	"log"
 	"net"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
 	socks5 "github.com/armon/go-socks5"
 	"github.com/artyom/autoflags"
 	"github.com/artyom/logger"
+	"github.com/artyom/ping"
 	"github.com/xtaci/smux"
+	"golang.org/x/sync/errgroup"
 )
 
 func main() {
@@ -174,7 +178,7 @@ func runClient(addr, certFile, keyFile string, remotes []string, log logger.Inte
 			KeepAlive: 3 * time.Minute,
 		}, "tcp", remote, cfg)
 	}
-	pool := &connPool{dialFunc: dialFunc, addrs: remotes, smuxCfg: &smux.Config{
+	pool := &connPool{dialFunc: dialFunc, log: log, addrs: remotes, smuxCfg: &smux.Config{
 		KeepAliveInterval: 45 * time.Second,
 		KeepAliveTimeout:  90 * time.Second,
 		MaxFrameSize:      4096,
@@ -185,6 +189,7 @@ func runClient(addr, certFile, keyFile string, remotes []string, log logger.Inte
 		return err
 	}
 	defer ln.Close()
+	defer pool.runPing()()
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -207,10 +212,77 @@ func runClient(addr, certFile, keyFile string, remotes []string, log logger.Inte
 type connPool struct {
 	dialFunc func(addr string) (net.Conn, error)
 	smuxCfg  *smux.Config
+	log      logger.Interface
 
-	mu    sync.Mutex
-	sess  *smux.Session
-	addrs []string // has at least 1 element
+	mu     sync.Mutex
+	sess   *smux.Session
+	reused int      // number of times session was reused
+	sorted bool     // whether addrs are sorted in "best route" order
+	addrs  []string // has at least 1 element
+}
+
+func (p *connPool) runPing() (cancel func()) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.addrs) <= 1 {
+		return func() {}
+	}
+	addrs := make([]string, len(p.addrs))
+	copy(addrs, p.addrs)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
+		var initDone bool
+		for {
+			switch {
+			case initDone:
+				select {
+				case <-ticker.C:
+				case <-ctx.Done():
+					return
+				}
+			default:
+				select {
+				default:
+					initDone = true
+				case <-ctx.Done():
+					return
+				}
+			}
+			g, ctx := errgroup.WithContext(ctx)
+			res := make([]ping.Summary, len(addrs))
+			for i, addr := range addrs {
+				i, addr := i, addr // shadow
+				g.Go(func() error {
+					host, _, err := net.SplitHostPort(addr)
+					if err != nil {
+						return err
+					}
+					s, err := pingAddress(ctx, host, 10)
+					if err == nil {
+						res[i] = s
+					}
+					return err
+				})
+			}
+			if err := g.Wait(); err != nil {
+				p.log.Println("ping:", err)
+				p.mu.Lock()
+				p.sorted = false
+				p.mu.Unlock()
+				continue
+			}
+			sort.Sort(&addrSorter{addrs: addrs, res: res})
+			p.mu.Lock()
+			p.sorted = true
+			copy(p.addrs, addrs)
+			p.mu.Unlock()
+			p.log.Printf("best ping endpoint: %s (lost:%d/%d, rtt:%v)", addrs[0],
+				res[0].Lost, res[0].Sent, res[0].AvgRTT.Truncate(time.Millisecond))
+		}
+	}()
+	return cancel
 }
 
 func (p *connPool) dial() (net.Conn, error) {
@@ -219,29 +291,83 @@ func (p *connPool) dial() (net.Conn, error) {
 	var retry bool
 tryAgain:
 	if p.sess == nil {
-		sess, err := newSession(p.dialFunc, p.smuxCfg, p.addrs)
+		var sess *smux.Session
+		var err error
+		switch {
+		case p.sorted:
+			sess, err = newSession(p.dialFunc, p.smuxCfg, p.addrs)
+		default:
+			sess, err = newSessionMulti(p.dialFunc, p.smuxCfg, p.addrs)
+		}
 		if err != nil {
 			return nil, err
 		}
-		p.sess = sess
+		p.sess, p.reused = sess, 0
+	}
+	if p.reused > 100 {
+		switch n := p.sess.NumStreams(); {
+		case n == 0:
+			p.sess.Close()
+			p.sess, p.reused = nil, 0
+			goto tryAgain
+		case n < 50:
+			go func(sess *smux.Session) {
+				ticker := time.NewTicker(time.Minute)
+				defer ticker.Stop()
+				for range ticker.C {
+					if sess.NumStreams() == 0 {
+						sess.Close()
+						return
+					}
+				}
+			}(p.sess)
+			p.sess, p.reused = nil, 0
+			goto tryAgain
+		}
 	}
 	if p.sess.IsClosed() {
 		p.sess.Close()
-		p.sess = nil
+		p.sess, p.reused = nil, 0
 		if !retry {
 			retry = true
 			goto tryAgain
 		}
 		return nil, fmt.Errorf("session is closed")
 	}
+	p.reused++
 	return p.sess.OpenStream()
 }
 
-// newSession dials multiple addresses in parallel and tries to establish a new
+// newSession dials addresses from addrs sequentially until it succeeds
+// establishing new smux.Session, returning the first that succeeds right away.
+// If no session was established, the last error is returned.
+func newSession(dialFunc func(string) (net.Conn, error), cfg *smux.Config, addrs []string) (*smux.Session, error) {
+	if len(addrs) == 0 {
+		return nil, fmt.Errorf("no destinations to dial")
+	}
+	var errOut error
+	for _, addr := range addrs {
+		conn, err := dialFunc(addr)
+		if err != nil {
+			errOut = err
+			continue
+		}
+		sess, err := smux.Client(conn, cfg)
+		if err != nil {
+			conn.Close()
+			errOut = err
+			continue
+		}
+		return sess, nil
+	}
+	return nil, errOut
+}
+
+// newSessionMulti dials multiple addresses in parallel and tries to establish a new
 // smux.Session on each, returning the first that succeeds right away. Other
 // successfully established sessions are closed as unused. If no session was
 // established, the last error is returned.
-func newSession(dialFunc func(string) (net.Conn, error), cfg *smux.Config, addrs []string) (*smux.Session, error) {
+func newSessionMulti(dialFunc func(string) (net.Conn, error), cfg *smux.Config, addrs []string) (*smux.Session, error) {
 	if len(addrs) == 0 {
 		return nil, fmt.Errorf("no destinations to dial")
 	}
@@ -334,4 +460,58 @@ func (c *stringSlice) String() string { return fmt.Sprint(*c) }
 func (c *stringSlice) Set(value string) error {
 	*c = append(*c, value)
 	return nil
+}
+
+func pingAddress(ctx context.Context, addr string, count int) (ping.Summary, error) {
+	p, err := ping.NewICMP(addr)
+	if err != nil {
+		return ping.Summary{}, err
+	}
+	defer p.Close()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+pingLoop:
+	for i := 0; ; i++ {
+		if count > 0 && i == count {
+			break
+		}
+		switch i {
+		case 0:
+		default:
+			select {
+			case <-ctx.Done():
+				break pingLoop
+			case <-ticker.C:
+			}
+		}
+		if _, _, err := p.Ping(); err != nil {
+			return ping.Summary{}, err
+		}
+	}
+	return p.Stat(), nil
+}
+
+// addrSorter implements sort.Interface to allow for simultaneous sort of two
+// corresponding slices: addresses and their ping results
+type addrSorter struct {
+	addrs []string
+	res   []ping.Summary
+}
+
+func (s *addrSorter) Len() int { return len(s.addrs) }
+
+func (s *addrSorter) Swap(i, j int) {
+	s.addrs[i], s.addrs[j] = s.addrs[j], s.addrs[i]
+	s.res[i], s.res[j] = s.res[j], s.res[i]
+}
+
+func (s *addrSorter) Less(i, j int) bool {
+	ri, rj := s.res[i], s.res[j]
+	if ri.Sent != rj.Sent {
+		return ri.Sent > rj.Sent
+	}
+	if ri.Lost != rj.Lost {
+		return ri.Lost < rj.Lost
+	}
+	return ri.AvgRTT < rj.AvgRTT
 }
