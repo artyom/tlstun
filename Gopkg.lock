@@ -21,6 +21,12 @@
   revision = "866fc605019a4b2cf0baa1bb05a356f6fb211904"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/artyom/ping"
+  packages = ["."]
+  revision = "e7d66403f7acdafa620af20e57398385ccdc6423"
+
+[[projects]]
   name = "github.com/pkg/errors"
   packages = ["."]
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
@@ -30,11 +36,31 @@
   branch = "master"
   name = "github.com/xtaci/smux"
   packages = ["."]
-  revision = "c898867f4f643b77c6b083c96c124ebf4f274ebb"
+  revision = "e28719eede1ac5714cf0b06ba2f403125864ebe0"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/net"
+  packages = [
+    "bpf",
+    "context",
+    "icmp",
+    "internal/iana",
+    "internal/socket",
+    "ipv4",
+    "ipv6"
+  ]
+  revision = "5ccada7d0a7ba9aeb5d3aca8d3501b4c2a509fec"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/sync"
+  packages = ["errgroup"]
+  revision = "fd80eb99c8f653c847d294a001bdf2a3a6f768f5"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "2335f09fea2cffef2cf4dcf6404c5fc3364092dac6b2fe77bb5c12b595ff864a"
+  inputs-digest = "456e37669a38be2966419872840cb18de423362a4f7c773224d3a88da81b5d9b"
   solver-name = "gps-cdcl"
   solver-version = 1
