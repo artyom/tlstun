@@ -118,12 +118,7 @@ func runServer(addr, certFile, keyFile string, l logger.Interface) error {
 	}
 	defer ln.Close()
 	tln := tls.NewListener(tcpKeepAliveListener{ln.(*net.TCPListener)}, cfg)
-	smuxCfg := &smux.Config{
-		KeepAliveInterval: 45 * time.Second,
-		KeepAliveTimeout:  90 * time.Second,
-		MaxFrameSize:      4096,
-		MaxReceiveBuffer:  4194304,
-	}
+	smuxCfg := newSmuxConfig()
 	for {
 		conn, err := tln.Accept()
 		if err != nil {
@@ -178,12 +173,7 @@ func runClient(addr, certFile, keyFile string, remotes []string, log logger.Inte
 			KeepAlive: 3 * time.Minute,
 		}, "tcp", remote, cfg)
 	}
-	pool := &connPool{dialFunc: dialFunc, log: log, addrs: remotes, smuxCfg: &smux.Config{
-		KeepAliveInterval: 45 * time.Second,
-		KeepAliveTimeout:  90 * time.Second,
-		MaxFrameSize:      4096,
-		MaxReceiveBuffer:  4194304,
-	}}
+	pool := &connPool{dialFunc: dialFunc, log: log, addrs: remotes, smuxCfg: newSmuxConfig()}
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
@@ -514,4 +504,13 @@ func (s *addrSorter) Less(i, j int) bool {
 		return ri.Lost < rj.Lost
 	}
 	return ri.AvgRTT < rj.AvgRTT
+}
+
+func newSmuxConfig() *smux.Config {
+	return &smux.Config{
+		KeepAliveInterval: 45 * time.Second,
+		KeepAliveTimeout:  90 * time.Second,
+		MaxFrameSize:      4096,
+		MaxReceiveBuffer:  4194304,
+	}
 }
