@@ -1,0 +1,8 @@
+github.com/artyom/autoflags v1.1.0 h1:Cz3qb/qSkhmt/Zgsu3D/HwMJtKYUSV5kctI6O9bekv4=
+github.com/artyom/go-socks5 v0.0.0-20171215124554-5ab49e6379c2 h1:T9460yYgomjwtQolElTmlsnJtapdp4y1l5mgpH8OTr0=
+github.com/artyom/logger v0.0.0-20170228124418-866fc605019a h1:3o85Z6X/2FOZ1gfm6oYd+JE1XFdkKmk8CLFXYsjuxAI=
+github.com/artyom/ping v0.0.0-20180120203215-e7d66403f7ac h1:+jNoFmoidDd5EumJA8Pok1nZZDyWOmeKwjAazuvRs8w=
+github.com/pkg/errors v0.8.0 h1:WdK/asTD0HN+q6hsWO3/vpuAkAr+tw6aNJNDFFf0+qw=
+github.com/xtaci/smux v0.0.0-20180104094128-e28719eede1a h1:B5rKgYn1WUYB5UJGPCcalqkuJkS4YU+/JAZKSHDD/TA=
+golang.org/x/net v0.0.0-20180112015858-5ccada7d0a7b h1:Xu6Gf1IrU0c8CSJqWR43Bh8vb+Ft3jVIUahRiqL1oaI=
+golang.org/x/sync v0.0.0-20171101214715-fd80eb99c8f6 h1:UWryf0el5qwmY5cBTqoyWVa4RPACJRSurjt+KoT0fF0=
