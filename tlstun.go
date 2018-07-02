@@ -40,6 +40,11 @@
 //
 // Note that -remote flag can be optionally set multiple times, then client
 // probes all servers and picks the one that replied first.
+//
+// If connections multiplexing over a single TLS session is not needed (i.e.
+// because of the head-of-line blocking effect), -nomux flag can be set, which
+// disables multiplexing and uses one TLS session per connection. Note that use
+// of this flag must be synchronized on client and server.
 package main
 
 import (
@@ -71,6 +76,7 @@ func main() {
 		Cert    string      `flag:"cert,PEM-encoded certificate + CA"`
 		Key     string      `flag:"key,PEM-encoded certificate key"`
 		Remotes stringSlice `flag:"remote,remote server(s) to connect (setting this enables client mode)"`
+		NoMux   bool        `flag:"nomux,do not multiplex connections over single TLS session"`
 	}{}
 	autoflags.Parse(&args)
 	if args.Cert == "" || args.Key == "" || args.Addr == "" {
@@ -87,9 +93,9 @@ func main() {
 	var err error
 	switch len(args.Remotes) {
 	case 0:
-		err = runServer(args.Addr, args.Cert, args.Key, log)
+		err = runServer(args.Addr, args.Cert, args.Key, args.NoMux, log)
 	default:
-		err = runClient(args.Addr, args.Cert, args.Key, args.Remotes, log)
+		err = runClient(args.Addr, args.Cert, args.Key, args.Remotes, args.NoMux, log)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -97,7 +103,7 @@ func main() {
 	}
 }
 
-func runServer(addr, certFile, keyFile string, l logger.Interface) error {
+func runServer(addr, certFile, keyFile string, noMux bool, l logger.Interface) error {
 	cfg, err := tlsConfig(certFile, keyFile)
 	if err != nil {
 		return err
@@ -123,6 +129,10 @@ func runServer(addr, certFile, keyFile string, l logger.Interface) error {
 		conn, err := tln.Accept()
 		if err != nil {
 			return err
+		}
+		if noMux {
+			go server.ServeConn(conn)
+			continue
 		}
 		go func(conn net.Conn) error {
 			start := time.Now()
@@ -153,7 +163,7 @@ func runServer(addr, certFile, keyFile string, l logger.Interface) error {
 	}
 }
 
-func runClient(addr, certFile, keyFile string, remotes []string, log logger.Interface) error {
+func runClient(addr, certFile, keyFile string, remotes []string, noMux bool, log logger.Interface) error {
 	for _, remote := range remotes {
 		host, port, err := net.SplitHostPort(remote)
 		if err != nil {
@@ -173,7 +183,7 @@ func runClient(addr, certFile, keyFile string, remotes []string, log logger.Inte
 			KeepAlive: 3 * time.Minute,
 		}, "tcp", remote, cfg)
 	}
-	pool := &connPool{dialFunc: dialFunc, log: log, addrs: remotes, smuxCfg: newSmuxConfig()}
+	pool := &connPool{dialFunc: dialFunc, log: log, noMux: noMux, addrs: remotes, smuxCfg: newSmuxConfig()}
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
@@ -203,6 +213,7 @@ type connPool struct {
 	dialFunc func(addr string) (net.Conn, error)
 	smuxCfg  *smux.Config
 	log      logger.Interface
+	noMux    bool
 
 	mu     sync.Mutex
 	sess   *smux.Session
@@ -276,6 +287,21 @@ func (p *connPool) runPing() (cancel func()) {
 }
 
 func (p *connPool) dial() (net.Conn, error) {
+	if p.noMux {
+		p.mu.Lock()
+		// avoid holding lock during dial below
+		addrs := make([]string, len(p.addrs))
+		copy(addrs, p.addrs)
+		p.mu.Unlock()
+		var err error
+		var conn net.Conn
+		for _, addr := range addrs {
+			if conn, err = p.dialFunc(addr); err == nil {
+				return conn, err
+			}
+		}
+		return nil, err
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	var retry bool

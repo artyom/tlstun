@@ -41,3 +41,8 @@ use this endpoint as a socks5 proxy.
 
 Note that -remote flag can be optionally set multiple times, then client
 probes all servers and picks the one that replied first.
+
+If connections multiplexing over a single TLS session is not needed (i.e.
+because of the head-of-line blocking effect), -nomux flag can be set, which
+disables multiplexing and uses one TLS session per connection. Note that use
+of this flag must be synchronized on client and server.
