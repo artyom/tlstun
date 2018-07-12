@@ -45,6 +45,9 @@
 // because of the head-of-line blocking effect), -nomux flag can be set, which
 // disables multiplexing and uses one TLS session per connection. Note that use
 // of this flag must be synchronized on client and server.
+//
+// You may force server side do all DNS lookups over CloudFlare's DNS over TLS
+// on 1.1.1.1 and 1.0.0.1 with -cfdns flag.
 package main
 
 import (
@@ -56,6 +59,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net"
 	"os"
 	"sort"
@@ -77,6 +81,7 @@ func main() {
 		Key     string      `flag:"key,PEM-encoded certificate key"`
 		Remotes stringSlice `flag:"remote,remote server(s) to connect (setting this enables client mode)"`
 		NoMux   bool        `flag:"nomux,do not multiplex connections over single TLS session"`
+		CfDNS   bool        `flag:"cfdns,use CloudFlare DNS over TLS on 1.1.1.1 and 1.0.0.1"`
 	}{}
 	autoflags.Parse(&args)
 	if args.Cert == "" || args.Key == "" || args.Addr == "" {
@@ -88,6 +93,9 @@ func main() {
 			fmt.Fprintln(os.Stderr, "-addr and -remote cannot be the same")
 			os.Exit(1)
 		}
+	}
+	if args.CfDNS {
+		net.DefaultResolver = cfResolver()
 	}
 	log := log.New(os.Stderr, "", 0)
 	var err error
@@ -538,5 +546,26 @@ func newSmuxConfig() *smux.Config {
 		KeepAliveTimeout:  90 * time.Second,
 		MaxFrameSize:      4096,
 		MaxReceiveBuffer:  4194304,
+	}
+}
+
+func cfResolver() *net.Resolver {
+	addrs := [...]string{"1.1.1.1:853", "1.0.0.1:853"}
+	var d net.Dialer
+	cfg := &tls.Config{
+		ServerName:         "cloudflare-dns.com",
+		ClientSessionCache: tls.NewLRUClientSessionCache(0),
+	}
+	return &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			conn, err := d.DialContext(ctx, "tcp", addrs[rand.Intn(len(addrs))])
+			if err != nil {
+				return nil, err
+			}
+			conn.(*net.TCPConn).SetKeepAlive(true)
+			conn.(*net.TCPConn).SetKeepAlivePeriod(3 * time.Minute)
+			return tls.Client(conn, cfg), nil
+		},
 	}
 }
