@@ -185,6 +185,7 @@ func runClient(addr, certFile, keyFile string, remotes []string, noMux bool, log
 	if err != nil {
 		return err
 	}
+	cfg.NextProtos = []string{"http/1.1", "h2"} // mimic https client
 	dialFunc := func(remote string) (net.Conn, error) {
 		return tls.DialWithDialer(&net.Dialer{
 			Timeout:   5 * time.Second,
@@ -445,12 +446,19 @@ func tlsConfig(certFile, keyFile string) (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	// allow server certificate be signed by any root CA from system pool,
+	// as well as one directly provided
+	roots, err := x509.SystemCertPool()
+	if err != nil {
+		return nil, err
+	}
+	roots.AddCert(ca)
 	certPool := x509.NewCertPool()
 	certPool.AddCert(ca)
 	return &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		ClientAuth:   tls.RequireAndVerifyClientCert,
-		RootCAs:      certPool,
+		RootCAs:      roots,
 		ClientCAs:    certPool,
 		CipherSuites: []uint16{
 			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
