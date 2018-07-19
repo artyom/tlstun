@@ -1,7 +1,5 @@
 module github.com/artyom/tlstun
 
-replace github.com/armon/go-socks5 v0.0.0-20171215124554-5ab49e6379c2 => github.com/artyom/go-socks5 v0.0.0-20171215124554-5ab49e6379c2
-
 require (
 	github.com/armon/go-socks5 v0.0.0-20171215124554-5ab49e6379c2
 	github.com/artyom/autoflags v1.1.0
@@ -12,3 +10,5 @@ require (
 	golang.org/x/net v0.0.0-20180112015858-5ccada7d0a7b
 	golang.org/x/sync v0.0.0-20171101214715-fd80eb99c8f6
 )
+
+replace github.com/armon/go-socks5 => github.com/artyom/go-socks5 v0.0.0-20171215124554-5ab49e6379c2
