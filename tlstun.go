@@ -211,11 +211,17 @@ func runClient(addr, certFile, keyFile string, remotes []string, noMux bool, log
 				return err
 			}
 			defer rconn.Close()
-			go func() { defer conn.Close(); io.Copy(rconn, conn) }()
-			_, err = io.Copy(conn, rconn)
-			return err
+			errc := make(chan error, 1)
+			go proxyCopy(errc, rconn, conn)
+			go proxyCopy(errc, conn, rconn)
+			return <-errc
 		}(conn)
 	}
+}
+
+func proxyCopy(errc chan<- error, dst, src net.Conn) {
+	_, err := io.Copy(dst, src)
+	errc <- err
 }
 
 type connPool struct {
