@@ -1,5 +1,7 @@
 github.com/artyom/autoflags v1.1.0 h1:Cz3qb/qSkhmt/Zgsu3D/HwMJtKYUSV5kctI6O9bekv4=
 github.com/artyom/autoflags v1.1.0/go.mod h1:Th9KgAVvFcYp7t8b//Pu21xHjExLpzr4SXCbwVbHL7Y=
+github.com/artyom/dot v1.0.0 h1:QZDI689coEU4aLgxNTt5tgdlynY09CD/2qks72Kx1gs=
+github.com/artyom/dot v1.0.0/go.mod h1:m1LUyBlfq18fD1d2QNQZbOPkwiA7MN6LV+OJObYd4HY=
 github.com/artyom/go-socks5 v0.0.0-20171215124554-5ab49e6379c2 h1:T9460yYgomjwtQolElTmlsnJtapdp4y1l5mgpH8OTr0=
 github.com/artyom/go-socks5 v0.0.0-20171215124554-5ab49e6379c2/go.mod h1:yRXFOUZFyChQ04TG7dhhvk9wjZNpLJEy82asDMGGf6k=
 github.com/artyom/logger v0.0.0-20170228124418-866fc605019a h1:3o85Z6X/2FOZ1gfm6oYd+JE1XFdkKmk8CLFXYsjuxAI=

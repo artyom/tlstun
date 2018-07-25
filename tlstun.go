@@ -59,7 +59,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"net"
 	"os"
 	"sort"
@@ -68,6 +67,7 @@ import (
 
 	socks5 "github.com/armon/go-socks5"
 	"github.com/artyom/autoflags"
+	"github.com/artyom/dot"
 	"github.com/artyom/logger"
 	"github.com/artyom/ping"
 	"github.com/xtaci/smux"
@@ -95,7 +95,7 @@ func main() {
 		}
 	}
 	if args.CfDNS {
-		net.DefaultResolver = cfResolver()
+		net.DefaultResolver = dot.Cloudflare()
 	}
 	log := log.New(os.Stderr, "", 0)
 	var err error
@@ -560,26 +560,5 @@ func newSmuxConfig() *smux.Config {
 		KeepAliveTimeout:  90 * time.Second,
 		MaxFrameSize:      4096,
 		MaxReceiveBuffer:  4194304,
-	}
-}
-
-func cfResolver() *net.Resolver {
-	addrs := [...]string{"1.1.1.1:853", "1.0.0.1:853"}
-	var d net.Dialer
-	cfg := &tls.Config{
-		ServerName:         "cloudflare-dns.com",
-		ClientSessionCache: tls.NewLRUClientSessionCache(0),
-	}
-	return &net.Resolver{
-		PreferGo: true,
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			conn, err := d.DialContext(ctx, "tcp", addrs[rand.Intn(len(addrs))])
-			if err != nil {
-				return nil, err
-			}
-			conn.(*net.TCPConn).SetKeepAlive(true)
-			conn.(*net.TCPConn).SetKeepAlivePeriod(3 * time.Minute)
-			return tls.Client(conn, cfg), nil
-		},
 	}
 }
