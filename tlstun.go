@@ -46,7 +46,7 @@
 // disables multiplexing and uses one TLS session per connection. Note that use
 // of this flag must be synchronized on client and server.
 //
-// You may force server side do all DNS lookups over CloudFlare's DNS over TLS
+// You may force server side do all DNS lookups over Cloudflare's DNS over TLS
 // on 1.1.1.1 and 1.0.0.1 with -cfdns flag.
 package main
 
@@ -81,7 +81,7 @@ func main() {
 		Key     string      `flag:"key,PEM-encoded certificate key"`
 		Remotes stringSlice `flag:"remote,remote server(s) to connect (setting this enables client mode)"`
 		NoMux   bool        `flag:"nomux,do not multiplex connections over single TLS session"`
-		CfDNS   bool        `flag:"cfdns,use CloudFlare DNS over TLS on 1.1.1.1 and 1.0.0.1"`
+		CfDNS   bool        `flag:"cfdns,use Cloudflare DNS over TLS on 1.1.1.1 and 1.0.0.1"`
 	}{}
 	autoflags.Parse(&args)
 	if args.Cert == "" || args.Key == "" || args.Addr == "" {

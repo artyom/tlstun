@@ -47,5 +47,5 @@ because of the head-of-line blocking effect), -nomux flag can be set, which
 disables multiplexing and uses one TLS session per connection. Note that use
 of this flag must be synchronized on client and server.
 
-You may force server side do all DNS lookups over CloudFlare's DNS over TLS
+You may force server side do all DNS lookups over Cloudflare's DNS over TLS
 on 1.1.1.1 and 1.0.0.1 with -cfdns flag.
