@@ -3,8 +3,7 @@ Command tlstun implements basic VPN over TLS (both client and server).
 Client part is expected to be run locally and used by local services as a
 socks5 proxy. Client establishes TLS session to the server running on some
 remote host that performs outgoing requests on behalf of requests made to
-the client. Communication between client and server is multiplexed over a
-single TLS session thus reducing TLS handshake overhead.
+the client.
 
 Client and server authenticate each other with certificates which can be
 created with openssl or https://github.com/artyom/gencert
@@ -12,40 +11,62 @@ created with openssl or https://github.com/artyom/gencert
 
 Usage example
 
-Generate server and client side certificates, they should be signed by the
-same CA and saved using PEM encoding into a single file with certificate
-followed by CA. Certificate keys should also be saved as a separate
-PEM-encoded files. With gencert tool from https://github.com/artyom/gencert
-this can be done as:
+Generate server and client side certificates, they can be signed by the same
+CA and saved using PEM encoding into a single file. Certificate keys should
+also be saved as a separate PEM-encoded files. With gencert tool from
+https://github.com/artyom/gencert this can be done as:
 
     gencert -hosts my.domain.tld
 
-This produces four files in the current directory: client certificate + key
-pair and another pair for the server. Note that my.domain.tld should point
-to the host you plan running server part of tlstun.
+This produces five files in the current directory: client certificate + key
+pair, another pair for the server and a certificate authority certificate.
+Note that my.domain.tld should point to the host you plan running server
+part of tlstun.
 
 Now configure tlstun to run on the server that could be reached at
 my.domain.tld like this:
 
-    tlstun -addr=:9000 -cert=server-cert.pem -key=server-key.pem
+    tlstun server -addr=:9000 -ca=ca.pem \
+    	-cert=server-cert.pem -key=server-key.pem
 
 The client part is expected to be running locally (on a laptop/workstation,
 etc.):
 
-    tlstun -addr=127.0.0.1:1080 -remote=my.domain.tld:9000 \
-    	-cert=client-cert.pem -key=client-key.pem
+    tlstun client -addr=127.0.0.1:1080 -ca=ca.pem \
+    	-cert=client-cert.pem -key=client-key.pem \
+    	my.domain.tld:9000
 
-The presence of -remote flag configures tlstun to run in client mode. It is
-now listening on localhost port 1080 and local software can be configured to
-use this endpoint as a socks5 proxy.
+Client is now listening on localhost port 1080 and local software can be
+configured to use this endpoint as a socks5 proxy.
 
-Note that -remote flag can be optionally set multiple times, then client
-probes all servers and picks the one that replied first.
+Client may be configured to work with multiple servers:
 
-If connections multiplexing over a single TLS session is not needed (i.e.
-because of the head-of-line blocking effect), -nomux flag can be set, which
-disables multiplexing and uses one TLS session per connection. Note that use
-of this flag must be synchronized on client and server.
+    tlstun client -addr=127.0.0.1:1080 -ca=ca.pem \
+    	-cert=client-cert.pem -key=client-key.pem \
+    	my.domain.tld:9000 other.domain.tld:9000
 
-You may force server side do all DNS lookups over Cloudflare's DNS over TLS
-on 1.1.1.1 and 1.0.0.1 with -cfdns flag.
+By default client will periodically evaluate all endpoints and prefer one
+which replies first. This check may be disabled with -no-check flag.
+
+Instead of listing endpoints directly, client may discover them from SRV DNS
+records. If -discover=domain.tld flag is set, client ignores any endpoints
+given on the command line and instead looks up SRV record
+_tlstun._tcp.domain.tld, which must follow standard format to specify
+host/port pairs.
+
+
+HTTPS compatible mode
+
+Server may be configured to automatically issue certificate from ACME
+provider (currently is's Let's Encrypt). For this to work, server must be
+exposed over port 443 and it also doubles as an https endpoint. By default
+it replies with 404 Not Found, but can optionally be configured to serve
+static files from file system directory:
+
+    tlstun server -addr=:443 -ca=ca.pem -acme \
+    	-acme-domain=domain.tld -acme-email=you@domain.tld \
+    	-acme-cache=/var/cache/acme \
+    	-httproot=/var/www/domain.tld
+
+Server may also be run with -dns-tls flag, which enables resolving via
+DNS-over-TLS providers (currently Cloudflare and Quad9).
