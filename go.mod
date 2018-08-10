@@ -1,4 +1,4 @@
-module github.com/artyom/v2/tlstun
+module github.com/artyom/tlstun/v2
 
 require (
 	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5
