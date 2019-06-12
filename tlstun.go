@@ -153,21 +153,18 @@ func runClient(args clientArgs, servers []string) error {
 		r = anyResolver(dot.Cloudflare(), dot.Quad9())
 	}
 	if args.Discover != "" {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		cname, recs, err := r.LookupSRV(ctx, "tlstun", "tcp", args.Discover)
+		lookup := func(service, proto, name string) (string, []*net.SRV, error) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			return r.LookupSRV(ctx, service, proto, name)
+		}
+		cname, recs, err := lookup("tlstun", "tcp", args.Discover)
 		if err != nil {
 			return err
 		}
 		if len(recs) == 0 {
 			return fmt.Errorf("no server endpoints discovered at %q", cname)
 		}
-		sort.Slice(recs, func(i, j int) bool {
-			if recs[i].Priority == recs[j].Priority {
-				return recs[i].Weight > recs[j].Weight
-			}
-			return recs[i].Priority < recs[j].Priority
-		})
 		servers = servers[:0]
 		for _, rec := range recs {
 			servers = append(servers, net.JoinHostPort(rec.Target,
