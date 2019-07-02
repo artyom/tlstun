@@ -72,6 +72,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -84,6 +85,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -159,6 +161,13 @@ func runClient(args clientArgs, servers []string) error {
 			return r.LookupSRV(ctx, service, proto, name)
 		}
 		cname, recs, err := lookup("tlstun", "tcp", args.Discover)
+		if te, ok := err.(interface{ Temporary() bool }); ok && te.Temporary() {
+			if cached := loadDiscoverCache(args.Discover); len(cached) > 0 {
+				log.Printf("using cached server list, temporary discover failure: %v", err)
+				servers = cached
+				goto hasServers
+			}
+		}
 		if err != nil {
 			return err
 		}
@@ -170,7 +179,9 @@ func runClient(args clientArgs, servers []string) error {
 			servers = append(servers, net.JoinHostPort(rec.Target,
 				strconv.FormatUint(uint64(rec.Port), 10)))
 		}
+		saveDiscoverCache(args.Discover, servers)
 	}
+hasServers:
 	for _, addr := range servers {
 		host, port, err := net.SplitHostPort(addr)
 		if err != nil {
@@ -637,6 +648,31 @@ func (sr socksResolver) Resolve(ctx context.Context, name string) (context.Conte
 		return ctx, nil, &net.DNSError{Err: "no such host", Name: name}
 	}
 	return ctx, ips[0].IP, nil
+}
+
+func loadDiscoverCache(name string) []string {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return nil
+	}
+	file := filepath.Join(dir, "tlstun",
+		fmt.Sprintf("%x", sha256.Sum256([]byte(name))))
+	b, err := ioutil.ReadFile(file)
+	if err != nil {
+		return nil
+	}
+	return strings.Split(string(b), "\n")
+}
+
+func saveDiscoverCache(name string, vals []string) {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return
+	}
+	file := filepath.Join(dir, "tlstun",
+		fmt.Sprintf("%x", sha256.Sum256([]byte(name))))
+	_ = os.MkdirAll(filepath.Dir(file), 0700)
+	_ = ioutil.WriteFile(file, []byte(strings.Join(vals, "\n")), 0600)
 }
 
 func usageMain(serverFlags, clientFlags *flag.FlagSet) {
