@@ -67,7 +67,7 @@
 //		-httproot=/var/www/domain.tld
 //
 // Server may also be run with -dns-tls flag, which enables resolving via
-// DNS-over-TLS providers (currently Cloudflare and Quad9).
+// DNS-over-TLS providers (currently Cloudflare, Quad9, LibreDNS).
 package main
 
 import (
@@ -152,7 +152,7 @@ func runClient(args clientArgs, servers []string) error {
 	}
 	var r *net.Resolver
 	if args.DoT {
-		r = anyResolver(dot.Cloudflare(), dot.Quad9())
+		r = anyResolver(dot.Cloudflare(), dot.Quad9(), dot.LibreOps())
 	}
 	if args.Discover != "" {
 		lookup := func(service, proto, name string) (string, []*net.SRV, error) {
@@ -346,7 +346,7 @@ type clientArgs struct {
 	Key       string `flag:"key,path to PEM-encoded certificate key"`
 	CA        string `flag:"ca,path to PEM-encoded CA certificate used to verify server certificate"`
 	SystemCAs bool   `flag:"system-ca,allow server certificate be signed by one of the system CAs"`
-	DoT       bool   `flag:"dns-tls,use DNS-over-TLS (Cloudflare and Quad9)"`
+	DoT       bool   `flag:"dns-tls,use DNS-over-TLS (Cloudflare, Quad9, LibreDNS)"`
 	NoCheck   bool   `flag:"no-check,do not evaluate server health periodically to pick the best one"`
 }
 
@@ -385,7 +385,7 @@ func runServer(args serverArgs) error {
 
 	var r *net.Resolver
 	if args.DoT {
-		r = anyResolver(dot.Cloudflare(), dot.Quad9())
+		r = anyResolver(dot.Cloudflare(), dot.Quad9(), dot.LibreOps())
 	}
 	socksServer, err := socks5.New(&socks5.Config{
 		Dial: (&net.Dialer{
@@ -555,7 +555,7 @@ type serverArgs struct {
 	AcmeEmail  string `flag:"acme-email,email presented to ACME API (may be used for technical feedback)"`
 	AcmeCache  string `flag:"acme-cache,directory to store ACME-related files"`
 	DocRoot    string `flag:"httproot,if non-empty, this directory will be served as https site"`
-	DoT        bool   `flag:"dns-tls,use DNS-over-TLS (Cloudflare and Quad9)"`
+	DoT        bool   `flag:"dns-tls,use DNS-over-TLS (Cloudflare, Quad9, LibreDNS)"`
 }
 
 func clientTLSConfig(certFile, keyFile, caFile string, useSystemCAs bool) (*tls.Config, error) {
