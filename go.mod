@@ -9,6 +9,4 @@ require (
 	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f
 )
 
-replace github.com/armon/go-socks5 => github.com/artyom/go-socks5 v0.0.0-20171215124554-5ab49e6379c2
-
 go 1.13

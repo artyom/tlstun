@@ -1,11 +1,9 @@
-github.com/artyom/autoflags v1.1.0 h1:Cz3qb/qSkhmt/Zgsu3D/HwMJtKYUSV5kctI6O9bekv4=
-github.com/artyom/autoflags v1.1.0/go.mod h1:Th9KgAVvFcYp7t8b//Pu21xHjExLpzr4SXCbwVbHL7Y=
+github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5 h1:0CwZNZbxp69SHPdPJAN/hZIm0C4OItdklCFmMRWYpio=
+github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5/go.mod h1:wHh0iHkYZB8zMSxRWpUBQtwG5a7fFgvEO+odwuTv2gs=
 github.com/artyom/autoflags v1.1.1 h1:8flRmpb7xpjLHFVcM+HN+cEEKLw+H5a2hABDbRvfG9A=
 github.com/artyom/autoflags v1.1.1/go.mod h1:Th9KgAVvFcYp7t8b//Pu21xHjExLpzr4SXCbwVbHL7Y=
 github.com/artyom/dot v1.2.1 h1:ELbEWgrhrlI/bYG6T+RbPKcAau2vFbmL9rbZ9uBz8jo=
 github.com/artyom/dot v1.2.1/go.mod h1:5h98AfMpXkOfj+VNu66WDpi+GrQBwN/4pccXb4OtCak=
-github.com/artyom/go-socks5 v0.0.0-20171215124554-5ab49e6379c2 h1:T9460yYgomjwtQolElTmlsnJtapdp4y1l5mgpH8OTr0=
-github.com/artyom/go-socks5 v0.0.0-20171215124554-5ab49e6379c2/go.mod h1:yRXFOUZFyChQ04TG7dhhvk9wjZNpLJEy82asDMGGf6k=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550 h1:ObdrDkeb4kJdCP557AjRjq69pTHfNouLtWZG7j9rPN8=
 golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550/go.mod h1:yigFU9vqHzYiE8UmvKecakEJjdnWj3jj499lnFckfCI=
