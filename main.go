@@ -684,13 +684,13 @@ func usageMain(serverFlags, clientFlags *flag.FlagSet) {
 }
 
 func usageClient(flags *flag.FlagSet) {
-	fmt.Fprintln(os.Stderr, usageClientHead)
+	fmt.Fprint(os.Stderr, usageClientHead)
 	flags.PrintDefaults()
 	fmt.Fprint(os.Stderr, usageClientTail)
 }
 
 func usageServer(flags *flag.FlagSet) {
-	fmt.Fprintln(os.Stderr, usageServerHead)
+	fmt.Fprint(os.Stderr, usageServerHead)
 	flags.PrintDefaults()
 	fmt.Fprint(os.Stderr, usageServerTail)
 }
