@@ -8,14 +8,14 @@
 // Client and server authenticate each other with certificates which can be
 // created with openssl or https://github.com/artyom/gencert
 //
-// Usage example
+// # Usage example
 //
 // Generate server and client side certificates, they can be signed by the same
 // CA and saved using PEM encoding into a single file. Certificate keys should
 // also be saved as a separate PEM-encoded files. With gencert tool from
 // https://github.com/artyom/gencert this can be done as:
 //
-// 	gencert -hosts my.domain.tld
+//	gencert -hosts my.domain.tld
 //
 // This produces five files in the current directory: client certificate + key
 // pair, another pair for the server and a certificate authority certificate.
@@ -25,8 +25,8 @@
 // Now configure tlstun to run on the server that could be reached at
 // my.domain.tld like this:
 //
-// 	tlstun server -addr=:9000 -ca=ca.pem \
-// 		-cert=server-cert.pem -key=server-key.pem
+//	tlstun server -addr=:9000 -ca=ca.pem \
+//		-cert=server-cert.pem -key=server-key.pem
 //
 // The client part is expected to be running locally (on a laptop/workstation,
 // etc.):
@@ -53,7 +53,7 @@
 // _tlstun._tcp.domain.tld, which must follow standard format to specify
 // host/port pairs.
 //
-// HTTPS compatible mode
+// # HTTPS compatible mode
 //
 // Server may be configured to automatically issue certificate from ACME
 // provider (currently is's Let's Encrypt). For this to work, server must be
