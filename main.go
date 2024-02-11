@@ -79,7 +79,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net"
@@ -394,7 +393,7 @@ func runServer(args serverArgs) error {
 			Resolver:  r,
 		}).DialContext,
 		Resolver: newSocksResolver(r),
-		Logger:   log.New(ioutil.Discard, "", 0),
+		Logger:   log.New(io.Discard, "", 0),
 	})
 	if err != nil {
 		panic(err)
@@ -502,7 +501,7 @@ type acceptRes struct {
 
 func acmeTLSConfig(domain, email, cacheDir, caFile string) (*tls.Config, error) {
 	pool := x509.NewCertPool()
-	b, err := ioutil.ReadFile(caFile)
+	b, err := os.ReadFile(caFile)
 	if err != nil {
 		return nil, err
 	}
@@ -527,7 +526,7 @@ func serverTLSConfig(certFile, keyFile, caFile string) (*tls.Config, error) {
 		return nil, err
 	}
 	pool := x509.NewCertPool()
-	b, err := ioutil.ReadFile(caFile)
+	b, err := os.ReadFile(caFile)
 	if err != nil {
 		return nil, err
 	}
@@ -573,7 +572,7 @@ func clientTLSConfig(certFile, keyFile, caFile string, useSystemCAs bool) (*tls.
 		}
 	}
 	if caFile != "" {
-		b, err := ioutil.ReadFile(caFile)
+		b, err := os.ReadFile(caFile)
 		if err != nil {
 			return nil, err
 		}
@@ -657,7 +656,7 @@ func loadDiscoverCache(name string) []string {
 	}
 	file := filepath.Join(dir, "tlstun",
 		fmt.Sprintf("%x", sha256.Sum256([]byte(name))))
-	b, err := ioutil.ReadFile(file)
+	b, err := os.ReadFile(file)
 	if err != nil {
 		return nil
 	}
@@ -672,7 +671,7 @@ func saveDiscoverCache(name string, vals []string) {
 	file := filepath.Join(dir, "tlstun",
 		fmt.Sprintf("%x", sha256.Sum256([]byte(name))))
 	_ = os.MkdirAll(filepath.Dir(file), 0700)
-	_ = ioutil.WriteFile(file, []byte(strings.Join(vals, "\n")), 0600)
+	_ = os.WriteFile(file, []byte(strings.Join(vals, "\n")), 0600)
 }
 
 func usageMain(serverFlags, clientFlags *flag.FlagSet) {
